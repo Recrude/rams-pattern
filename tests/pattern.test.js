@@ -162,3 +162,54 @@ test('프리셋 모두 구멍을 만든다', () => {
     assert.ok(!res.stats.capped, pr.id);
   }
 });
+
+test('육각: 꼭짓점까지 영역 안 (맞변 10 → 외접 반지름 10/√3)', () => {
+  const one = (D) => gen({ layout: 'grid', pitchX: 100, pitchY: 100, shape: 'hex', hex: 10, diameter: D, panelW: 20, panelH: 20 });
+  assert.equal(one(2 * 10 / Math.sqrt(3) + 1e-4).stats.count, 1);
+  assert.equal(one(2 * 10 / Math.sqrt(3) - 1e-3).stats.count, 0);
+  const res = one(12);
+  near(res.stats.open * Math.PI * 36, Math.sqrt(3) / 2 * 100);
+  const svg = RP.toSVG(res);
+  assert.match(svg, /<polygon points="(\S+,\S+ ){5}\S+,\S+"\/>/);
+  // 각도 0: 꼭짓점 하나가 정확히 위(−y)를 향한다
+  assert.ok(res.shapes[0].pts.some(([x, y]) => Math.abs(x - 10) < 1e-9 && Math.abs(y - (10 - 10 / Math.sqrt(3))) < 1e-9));
+});
+
+test('육각 벌집: 이웃끼리 겹치지 않고 벽 두께 = 간격 − 크기', () => {
+  const res = gen(RP.PRESETS.find((p) => p.id === 'hex').params);
+  assert.ok(res.stats.count > 200);
+  const [a] = res.shapes;
+  let nearest = Infinity;
+  for (const b of res.shapes) if (b !== a) nearest = Math.min(nearest, Math.hypot(a.x - b.x, a.y - b.y));
+  near(nearest, 4, 1e-2);   // 맞변 방향 이웃 거리 = 가로 간격
+});
+
+test('가운데 세로 띠: 가운데 열이 빠진다', () => {
+  const base = { layout: 'grid', pitchX: 10, pitchY: 10, d: 2, boundary: 'rect', boundW: 42, boundH: 22 };
+  assert.equal(gen(base).stats.count, 15);
+  const res = gen({ ...base, split: 4 });
+  assert.equal(res.stats.count, 12);
+  assert.ok(res.shapes.every((e) => Math.abs(e.x - 70) >= 3 - 1e-9));
+  assert.equal(gen({ ...base, split: 4, splitDir: 'horizontal' }).stats.count, 10);
+});
+
+test('나뉜 슬릿: 줄마다 두 조각, 길이 = (폭 − 띠) / 2', () => {
+  const res = gen({ layout: 'grid', pitchY: 10, shape: 'slot', thickness: 2, fit: true,
+    boundary: 'rect', boundW: 90, boundH: 30, split: 8 });
+  assert.equal(res.stats.count, 6);
+  for (const e of res.shapes) near(e.w, 41);
+  const xs = [...new Set(res.shapes.map((e) => e.x.toFixed(3)))].sort();
+  assert.deepEqual(xs, [(70 - 24.5).toFixed(3), (70 + 24.5).toFixed(3)].sort());
+});
+
+test('얇은 띠도 건너뛰지 않는다', () => {
+  const res = gen({ layout: 'grid', pitchY: 10, shape: 'slot', thickness: 1, fit: true,
+    boundary: 'rect', boundW: 200, boundH: 10, panelW: 220, split: 0.3 });
+  assert.equal(res.stats.count, 2);
+});
+
+test('띠는 동심원에도 걸린다', () => {
+  const res = gen({ split: 6 });
+  assert.ok(res.stats.count < 127);
+  assert.ok(res.shapes.every((e) => Math.abs(e.x - 70) >= 3 + 1.95 - 1e-9));
+});

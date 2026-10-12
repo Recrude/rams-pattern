@@ -12,11 +12,12 @@
   const DEFAULTS = Object.freeze({
     panelW: 140, panelH: 140, bg: '#e8e6df', hole: '#141414',
     boundary: 'circle', diameter: 110, boundW: 100, boundH: 100, boundR: 0, margin: 0, outline: false,
+    split: 0, splitDir: 'vertical',
     layout: 'rings',
     pitch: 8, firstRing: 8, count: 'multiple', multiple: 6, arc: 8, phase: 'align', twist: 3, centerHole: true,
     pitchX: 7, pitchY: 7, stagger: 0, origin: 'hole',
     rotation: 0,
-    shape: 'circle', d: 3.9, length: 6, thickness: 1.6, fit: false, s: 3, corner: 0.5, orient: 'tangent',
+    shape: 'circle', d: 3.9, length: 6, thickness: 1.6, fit: false, s: 3, corner: 0.5, hex: 3.4, orient: 'tangent',
     background: true, stroke: false,
   });
 
@@ -26,7 +27,8 @@
     count: ['multiple', 'equal'],
     phase: ['align', 'stagger', 'twist'],
     origin: ['hole', 'between'],
-    shape: ['circle', 'slot', 'square'],
+    shape: ['circle', 'slot', 'square', 'hex'],
+    splitDir: ['vertical', 'horizontal'],
     orient: ['tangent', 'radial'],
   };
 
@@ -35,27 +37,34 @@
     panelW: [1, 1000], panelH: [1, 1000], diameter: [0.1, 1000], boundW: [0.1, 1000], boundH: [0.1, 1000],
     boundR: [0, 500], margin: [0, 100], pitch: [0.5, 200], firstRing: [0, 500], multiple: [1, 60],
     arc: [0.5, 200], pitchX: [0.5, 200], pitchY: [0.5, 200], stagger: [0, 1], d: [0.05, 200],
-    length: [0.05, 1000], thickness: [0.05, 200], s: [0.05, 200], corner: [0, 100],
+    length: [0.05, 1000], thickness: [0.05, 200], s: [0.05, 200], corner: [0, 100], hex: [0.05, 200], split: [0, 500],
     rotation: [-360, 360], twist: [-180, 180],
   };
 
   const H = Math.sqrt(3) / 2;
+  // 참고 제품은 자료로 그릴 종류까지 확인한 것만 적는다 (README 출처).
   const PRESETS = [
     { id: 't3', name: '동심원 배수', ref: 'T 3', params: {} },
     { id: 'rings-stagger', name: '동심원 엇갈림', ref: '', params: {
       pitch: 7, firstRing: 7, count: 'equal', arc: 7, phase: 'stagger', d: 3.6 } },
     { id: 'round-grid', name: '원형 격자', ref: '', params: {
       layout: 'grid', pitchX: 6.5, pitchY: 6.5, d: 3.4 } },
-    { id: 'perforated', name: '엇갈림 타공', ref: 'LE 1 · L 01', params: {
+    { id: 'perforated', name: '엇갈림 타공', ref: 'T 1000 · LE 1', params: {
       panelW: 110, panelH: 150, boundary: 'rect', boundW: 100, boundH: 140,
       layout: 'grid', pitchX: 4, pitchY: +(4 * H).toFixed(3), stagger: 0.5, d: 2.6 } },
-    { id: 'square-perf', name: '정사각 타공', ref: '', params: {
+    { id: 'square-perf', name: '정사각 타공', ref: 'SK 1 · ABR 21', params: {
       panelW: 110, panelH: 110, boundary: 'rect', boundW: 100, boundH: 100, boundR: 8,
       layout: 'grid', pitchX: 3.5, pitchY: 3.5, d: 2 } },
+    { id: 'hex', name: '육각 구멍', ref: 'Sixtant', params: {
+      panelW: 120, panelH: 80, boundary: 'rect', boundW: 110, boundH: 70, boundR: 35,
+      layout: 'grid', pitchX: 4, pitchY: +(4 * H).toFixed(3), stagger: 0.5, shape: 'hex', hex: 3.4 } },
     { id: 'slits', name: '가로 슬릿', ref: 'SK 4', params: {
       panelW: 110, panelH: 130, boundary: 'rect', boundW: 90, boundH: 110,
       layout: 'grid', pitchY: 4, shape: 'slot', thickness: 1.8, fit: true } },
-    { id: 'round-slits', name: '원형 슬릿', ref: '', params: {
+    { id: 'split-slits', name: '나뉜 슬릿', ref: 'HLD 4', params: {
+      panelW: 110, panelH: 110, boundary: 'rect', boundW: 90, boundH: 90, split: 8,
+      layout: 'grid', pitchY: 4.5, shape: 'slot', thickness: 2, fit: true } },
+    { id: 'round-slits', name: '원형 슬릿', ref: 'RT 20', params: {
       layout: 'grid', pitchY: 5, shape: 'slot', thickness: 2.2, fit: true } },
     { id: 'radial', name: '방사 슬롯', ref: '', params: {
       diameter: 120, pitch: 10, firstRing: 12, count: 'equal', arc: 4.5, phase: 'stagger',
@@ -88,9 +97,23 @@
   // ── 영역 ──────────────────────────────────────────────
   function boundaryOf(p) {
     const cx = p.panelW / 2, cy = p.panelH / 2;
-    if (p.boundary === 'circle') return { kind: 'circle', cx, cy, R: p.diameter / 2, m: p.margin };
+    // 가운데 띠: 회전한 격자의 세로축(세로 띠) 또는 가로축(가로 띠)을 따라 폭 split만큼 비운다
+    const t = p.rotation * DEG;
+    const band = p.split > 0
+      ? { h: p.split / 2, nx: p.splitDir === 'vertical' ? Math.cos(t) : -Math.sin(t), ny: p.splitDir === 'vertical' ? Math.sin(t) : Math.cos(t) }
+      : null;
+    if (p.boundary === 'circle') return { kind: 'circle', cx, cy, R: p.diameter / 2, m: p.margin, band };
     const a = p.boundW / 2, b = p.boundH / 2;
-    return { kind: 'rect', cx, cy, a, b, r: Math.min(p.boundR, a, b), m: p.margin };
+    return { kind: 'rect', cx, cy, a, b, r: Math.min(p.boundR, a, b), m: p.margin, band };
+  }
+
+  // 원판이 띠의 어느 쪽에 있는가: +1 · −1, 띠에 걸치면 0. 띠가 없으면 언제나 +1.
+  function bandSide(B, x, y, r) {
+    if (!B.band) return 1;
+    const d = (x - B.cx) * B.band.nx + (y - B.cy) * B.band.ny;
+    if (d - r >= B.band.h - EPS) return 1;
+    if (d + r <= -B.band.h + EPS) return -1;
+    return 0;
   }
 
   // 반지름 r 원판이 (여백을 뺀) 영역 안에 통째로 들어가는가.
@@ -115,9 +138,19 @@
   }
 
   // ── 구멍 ──────────────────────────────────────────────
-  // 원은 circle, 슬롯과 사각은 둥근 rect(중심·크기·각도)로 둔다.
+  // 원은 circle, 슬롯과 사각은 둥근 rect(중심·크기·각도), 육각은 꼭짓점 목록 poly로 둔다.
+  // 육각 크기는 맞변 거리. 각도 0에서 꼭짓점이 위를 향해 가로줄 엇갈림 격자와 벌집으로 맞물린다.
   function makeElement(p, x, y, deg, len) {
     if (p.shape === 'circle') return { kind: 'circle', x, y, r: p.d / 2 };
+    if (p.shape === 'hex') {
+      const R = p.hex / Math.sqrt(3);
+      const pts = [];
+      for (let k = 0; k < 6; k++) {
+        const a = (deg + 30 + 60 * k) * DEG;
+        pts.push([x + R * Math.cos(a), y + R * Math.sin(a)]);
+      }
+      return { kind: 'poly', x, y, pts, area: (Math.sqrt(3) / 2) * p.hex * p.hex };
+    }
     if (p.shape === 'slot') {
       const t = p.thickness;
       return { kind: 'rect', x, y, w: Math.max(len === undefined ? p.length : len, t), h: t, rx: t / 2, a: deg };
@@ -128,23 +161,35 @@
   function elementRadius(p) {
     if (p.shape === 'circle') return p.d / 2;
     if (p.shape === 'slot') return Math.max(p.length, p.thickness) / 2;
+    if (p.shape === 'hex') return p.hex / Math.sqrt(3);
     return p.s * Math.SQRT1_2;
   }
 
-  // 둥근 rect는 네 모서리 원판의 볼록 껍질이다. 영역도 볼록이므로 네 원판이 다 들어가면 통째로 들어간다.
-  function fits(B, e) {
-    if (e.kind === 'circle') return inside(B, e.x, e.y, e.r);
+  // 모든 구멍은 원판 몇 개의 볼록 껍질이다: 원 1, 둥근 rect 4(모서리), 육각 6(꼭짓점, 반지름 0).
+  function discsOf(e) {
+    if (e.kind === 'circle') return [[e.x, e.y, e.r]];
+    if (e.kind === 'poly') return e.pts.map(([x, y]) => [x, y, 0]);
     const ax = e.w / 2 - e.rx, ay = e.h / 2 - e.rx;
     const c = Math.cos(e.a * DEG), s = Math.sin(e.a * DEG);
-    const corners = [[ax, ay], [-ax, ay], [ax, -ay], [-ax, -ay]];
-    for (const [u, v] of corners) {
-      if (!inside(B, e.x + u * c - v * s, e.y + u * s + v * c, e.rx)) return false;
+    return [[ax, ay], [-ax, ay], [ax, -ay], [-ax, -ay]].map(([u, v]) => [e.x + u * c - v * s, e.y + u * s + v * c, e.rx]);
+  }
+
+  // 영역은 볼록이고 띠 양쪽도 각각 볼록이다 → 원판이 모두 영역 안이고 모두 띠의 같은 쪽이면 통째로 들어간다.
+  function fits(B, e) {
+    let side = null;
+    for (const [x, y, r] of discsOf(e)) {
+      if (!inside(B, x, y, r)) return false;
+      const sd = bandSide(B, x, y, r);
+      if (sd === 0 || (side !== null && sd !== side)) return false;
+      side = sd;
     }
     return true;
   }
 
   function areaOf(e) {
-    return e.kind === 'circle' ? Math.PI * e.r * e.r : e.w * e.h - (4 - Math.PI) * e.rx * e.rx;
+    if (e.kind === 'circle') return Math.PI * e.r * e.r;
+    if (e.kind === 'poly') return e.area;
+    return e.w * e.h - (4 - Math.PI) * e.rx * e.rx;
   }
 
   function collector(p, B) {
@@ -221,18 +266,29 @@
     }
   }
 
-  // 줄 하나를 영역 폭만큼 늘인 슬릿. 볼록 영역과 직선의 교집합은 구간이므로
-  // 성기게 훑어 양 끝을 찾고 이분법으로 다듬는다.
+  // 줄 하나를 영역 폭만큼 늘인 슬릿. 볼록 영역과 직선의 교집합은 구간이고, 가운데 띠가 있으면 두 구간이 된다.
+  // 촘촘히 훑어 구간들을 찾고 끝을 이분법으로 다듬는다. 띠를 건너뛰지 않게 훑는 간격을 띠 폭의 1/4 이하로 둔다.
   function fitRow(p, B, col, ly, E, wx, wy) {
     const r = p.thickness / 2;
-    const ok = (lx) => inside(B, wx(lx, ly), wy(lx, ly), r);
-    const N = 600, step = 2 * E / N;
+    const ok = (lx) => {
+      const x = wx(lx, ly), y = wy(lx, ly);
+      return inside(B, x, y, r) && bandSide(B, x, y, r) !== 0;
+    };
+    const N = Math.min(20000, Math.max(600, B.band ? Math.ceil(8 * E / p.split) : 0));
+    const step = 2 * E / N;
+    const runs = [];
     let first = null, last = null;
     for (let q = 0; q <= N; q++) {
       const lx = -E + q * step;
-      if (ok(lx)) { if (first === null) first = lx; last = lx; }
+      if (ok(lx)) {
+        if (first === null) first = lx;
+        last = lx;
+      } else if (first !== null) {
+        runs.push([first, last]);
+        first = null;
+      }
     }
-    if (first === null) return;
+    if (first !== null) runs.push([first, last]);
     const edge = (inn, out) => {
       for (let it = 0; it < 40; it++) {
         const m = (inn + out) / 2;
@@ -240,10 +296,13 @@
       }
       return inn;
     };
-    const lo = edge(first, first - step), hi = edge(last, last + step);
-    if (hi - lo < p.thickness) return;     // 점에 가까운 짧은 조각은 버린다
-    const mid = (lo + hi) / 2;
-    col.push(wx(mid, ly), wy(mid, ly), p.rotation, hi - lo + p.thickness);
+    // 끝은 판정 허용치(EPS)까지 밀려 있다 → 슬롯 판정에서 다시 계산할 때 넘치지 않게 조금 물린다
+    for (const [a, b] of runs) {
+      const lo = edge(a, a - step) + 1e-5, hi = edge(b, b + step) - 1e-5;
+      if (hi - lo < p.thickness) continue;     // 점에 가까운 짧은 조각은 버린다
+      const mid = (lo + hi) / 2;
+      col.push(wx(mid, ly), wy(mid, ly), p.rotation, hi - lo + p.thickness);
+    }
   }
 
   function generate(input) {
@@ -268,6 +327,7 @@
 
   function shapeSVG(e) {
     if (e.kind === 'circle') return `<circle cx="${fmt(e.x)}" cy="${fmt(e.y)}" r="${fmt(e.r)}"/>`;
+    if (e.kind === 'poly') return `<polygon points="${e.pts.map(([x, y]) => `${fmt(x)},${fmt(y)}`).join(' ')}"/>`;
     let w = e.w, h = e.h;
     const period = Math.abs(w - h) < EPS ? 90 : 180;   // 대칭이라 이 주기로 돌리면 같은 모양
     let a = ((e.a % period) + period) % period;
