@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://rams-pattern.vercel.app/sitemap.xml

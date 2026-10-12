@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rams Pattern — 디터 람스 그릴 패턴 SVG 생성기</title>
+<meta name="description" content="디터 람스와 Braun 제품의 스피커 그릴·타공판에서 온 구멍 패턴 생성기. 동심원·격자·슬릿 배열을 조절해 mm 단위 SVG로 저장한다. Dieter Rams speaker grille and perforation pattern generator with SVG export.">
+<link rel="canonical" href="https://rams-pattern.vercel.app/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#f4f3ef">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Rams Pattern">
+<meta property="og:title" content="Rams Pattern — 디터 람스 그릴 패턴 SVG 생성기">
+<meta property="og:description" content="Braun 스피커 그릴·타공판 계열의 동심원·격자·슬릿 구멍 패턴을 만들고 mm 단위 SVG로 저장한다.">
+<meta property="og:url" content="https://rams-pattern.vercel.app/">
+<meta property="og:image" content="https://rams-pattern.vercel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Rams Pattern",
+  "alternateName": "디터 람스 그릴 패턴 생성기",
+  "url": "https://rams-pattern.vercel.app/",
+  "description": "Hole-pattern generator after the speaker grilles and perforated panels of Dieter Rams' Braun products. Concentric, grid and slit layouts exported as millimetre SVG.",
+  "applicationCategory": "DesignApplication",
+  "operatingSystem": "Any",
+  "inLanguage": ["ko", "en"],
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<style>
+  /* 바탕글 14px이 뿌리. 줄 1.5rem, 단위 u = 줄/3. 크기 1종 · 굵기 1종 · 잉크 1색. */
+  :root {
+    --base: 14px;
+    font-size: var(--base);
+    --line: 1.5rem;
+    --u: calc(var(--line) / 3);
+    --col: calc(var(--line) * 14);
+    --label: calc(var(--u) * 10);
+    --ink: #141414;
+    --paper: #f4f3ef;
+    font-family: "Helvetica Neue", Helvetica, Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    line-height: var(--line);
+    color: var(--ink);
+    background: var(--paper);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+
+  body {
+    display: grid;
+    grid-template-columns: var(--col) 1fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--u) calc(var(--u) * 4);
+    align-items: center;
+    padding: var(--u) calc(var(--u) * 2);
+    border-bottom: 1px solid var(--ink);
+  }
+  header .stats { flex: 1; display: flex; flex-wrap: wrap; column-gap: calc(var(--u) * 3); }
+  header .actions { display: flex; }
+
+  aside {
+    overflow-y: auto;
+    scrollbar-width: none;
+    padding-bottom: calc(var(--line) * 3);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--line) * 2), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - var(--line) * 2), transparent);
+  }
+  aside::-webkit-scrollbar { display: none; }
+
+  section { padding: calc(var(--u) * 2); border-bottom: 1px solid var(--ink); }
+  section > h2 { margin-bottom: var(--u); }
+  .about p + p { margin-top: var(--u); }
+  .about { border-bottom: 0; }
+
+  .row {
+    display: grid;
+    grid-template-columns: var(--label) 1fr calc(var(--u) * 7) calc(var(--u) * 3);
+    gap: var(--u);
+    align-items: center;
+    min-height: var(--line);
+  }
+  .row + .row { margin-top: var(--u); }
+  .row > .wide { grid-column: 2 / -1; display: flex; align-items: center; gap: var(--u); }
+
+  button { background: none; border: 1px solid var(--ink); cursor: pointer; padding: 0 var(--u); height: var(--line); white-space: nowrap; }
+  button:hover { text-decoration: underline; }
+  button.on { background: var(--ink); color: var(--paper); }
+  .seg { display: flex; }
+  .seg button + button, .actions button + button { margin-left: -1px; }
+
+  input[type=number] {
+    width: 100%;
+    height: var(--line);
+    border: 1px solid var(--ink);
+    background: none;
+    border-radius: 0;
+    padding: 0 calc(var(--u) / 2);
+    text-align: right;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: var(--line); background: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--ink); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: var(--u); height: calc(var(--u) * 2);
+    margin-top: calc((var(--u) * 2 - 1px) / -2); background: var(--ink); border: 0; border-radius: 0;
+  }
+  input[type=range]::-moz-range-track { height: 1px; background: var(--ink); }
+  input[type=range]::-moz-range-thumb { width: var(--u); height: calc(var(--u) * 2); background: var(--ink); border: 0; border-radius: 0; }
+
+  input[type=checkbox] {
+    -webkit-appearance: none; appearance: none; flex: none;
+    width: calc(var(--u) * 2); height: calc(var(--u) * 2);
+    border: 1px solid var(--ink); background: none; cursor: pointer;
+  }
+  input[type=checkbox]:checked { background: var(--ink); box-shadow: inset 0 0 0 2px var(--paper); }
+  label.check { display: flex; align-items: center; gap: var(--u); cursor: pointer; }
+
+  input[type=color] { width: calc(var(--line) * 2); height: var(--line); border: 1px solid var(--ink); background: none; padding: 0; cursor: pointer; }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type=color]::-webkit-color-swatch { border: 0; border-radius: 0; }
+  input[type=color]::-moz-color-swatch { border: 0; border-radius: 0; }
+  .swatches { display: flex; }
+  .swatches button { width: var(--line); padding: 0; }
+  .swatches button + button { margin-left: -1px; }
+  .swatches button.on { box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ink); }
+
+  :focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+
+  .presets button {
+    display: grid;
+    grid-template-columns: calc(var(--u) * 4) 1fr auto;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    padding: 0 var(--u);
+  }
+
+  main { position: relative; min-width: 0; min-height: 0; }
+  #preview { position: absolute; inset: calc(var(--u) * 4); }
+  #preview svg { display: block; width: 100%; height: 100%; }
+  /* 미리보기에서 0.1mm 선은 화면 1px로 */
+  #preview svg [stroke] { stroke-width: 1px; }
+  #preview svg * { vector-effect: non-scaling-stroke; }
+
+  @media (max-width: 720px) {
+    body { display: flex; flex-direction: column; height: auto; }
+    header .stats { flex-basis: 100%; order: 3; }
+    main { order: 1; flex: none; height: 100vw; max-height: 70vh; border-bottom: 1px solid var(--ink); }
+    aside { order: 2; }
+    #preview { inset: calc(var(--u) * 2); }
+    aside { overflow: visible; -webkit-mask-image: none; mask-image: none; padding-bottom: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rams Pattern</h1>
+  <p class="stats" id="stats" aria-live="polite"></p>
+  <div class="actions">
+    <button type="button" id="save">SVG 저장</button>
+    <button type="button" id="copy">SVG 복사</button>
+  </div>
+</header>
+<aside>
+  <div id="controls"></div>
+  <section class="about">
+    <h2>소개</h2>
+    <p>디터 람스와 Braun 제품의 스피커 그릴·타공판에서 온 구멍 패턴을 만드는 생성기. 동심원·격자·슬릿 배열을 조절해 mm 단위 SVG로 저장하거나, 복사해 일러스트레이터에 바로 붙여 넣는다.</p>
+    <p lang="en">A hole-pattern generator after the speaker grilles and perforated panels of Dieter Rams’ Braun products. Concentric, grid and slit layouts, exported as millimetre SVG.</p>
+    <p>참고: T 3 타공 전면, SK 4 가로 슬릿, LE 1 · L 01 타공판. 그릴 종류만 따왔고 실제 제품의 구멍 수·간격은 대조하지 않았다.</p>
+  </section>
+</aside>
+<main><div id="preview" role="img" aria-label="패턴 미리보기"></div></main>
+<script src="pattern.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
